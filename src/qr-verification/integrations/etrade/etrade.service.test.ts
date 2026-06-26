@@ -1,18 +1,10 @@
 import { EtradeService } from './etrade.service';
 
-const mockGetBusinessLicensePage = jest.fn();
-const mockScrapeLicensePage = jest.fn();
+const mockGetBusinessLicense = jest.fn();
 
 jest.mock('./etrade.client', () => ({
   EtradeClient: jest.fn().mockImplementation(() => ({
-    getBusinessLicensePage: mockGetBusinessLicensePage,
-    postBusinessLicenseLookup: jest.fn(),
-  })),
-}));
-
-jest.mock('./etrade.scraper', () => ({
-  EtradeScraper: jest.fn().mockImplementation(() => ({
-    scrapeLicensePage: mockScrapeLicensePage,
+    getBusinessLicense: mockGetBusinessLicense,
   })),
 }));
 
@@ -24,14 +16,27 @@ describe('EtradeService', () => {
     service = new EtradeService();
   });
 
+  const validApiResponse = {
+    MainGuid: 'abc-123',
+    OwnerTIN: '1234567890',
+    TradeName: 'ABC Trading PLC',
+    LicenceNumber: 'ABC/123',
+    Status: 5,
+    StatusDescription: 'Is active',
+    AssociateShortInfos: [
+      {
+        Position: 'Manager',
+        ManagerName: 'Test',
+        MobilePhone: '+251911123456',
+      },
+    ],
+    AddressInfo: {
+      MobilePhone: '+251911123456',
+    },
+  };
+
   it('returns valid result when TIN matches and license is active', async () => {
-    mockGetBusinessLicensePage.mockResolvedValue('<html>mock</html>');
-    mockScrapeLicensePage.mockReturnValue({
-      businessName: 'ABC Trading PLC',
-      licenseStatus: 'Active',
-      tin: '1234567890',
-      phone: '+251911123456',
-    });
+    mockGetBusinessLicense.mockResolvedValue(validApiResponse);
 
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
 
@@ -41,12 +46,9 @@ describe('EtradeService', () => {
   });
 
   it('returns invalid when TIN does not match', async () => {
-    mockGetBusinessLicensePage.mockResolvedValue('<html>mock</html>');
-    mockScrapeLicensePage.mockReturnValue({
-      businessName: 'ABC Trading PLC',
-      licenseStatus: 'Active',
-      tin: '9999999999',
-      phone: '+251911123456',
+    mockGetBusinessLicense.mockResolvedValue({
+      ...validApiResponse,
+      OwnerTIN: '9999999999',
     });
 
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
@@ -54,13 +56,8 @@ describe('EtradeService', () => {
     expect(result.valid).toBe(false);
   });
 
-  it('returns NOT_FOUND when no TIN in scraped data', async () => {
-    mockGetBusinessLicensePage.mockResolvedValue('<html>not found</html>');
-    mockScrapeLicensePage.mockReturnValue({
-      businessName: '',
-      licenseStatus: 'NOT_FOUND',
-      tin: '',
-    });
+  it('returns NOT_FOUND when API returns null (204)', async () => {
+    mockGetBusinessLicense.mockResolvedValue(null);
 
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
 
@@ -69,7 +66,7 @@ describe('EtradeService', () => {
   });
 
   it('returns API_ERROR on network failure', async () => {
-    mockGetBusinessLicensePage.mockRejectedValue(new Error('Network error'));
+    mockGetBusinessLicense.mockRejectedValue(new Error('Network error'));
 
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
 

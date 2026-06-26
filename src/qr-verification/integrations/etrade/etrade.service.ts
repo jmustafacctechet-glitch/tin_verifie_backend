@@ -1,16 +1,13 @@
 import { GovernmentIntegration, LicenseVerificationResult } from '../integration.interface';
 import { EtradeClient } from './etrade.client';
-import { EtradeScraper } from './etrade.scraper';
-import { EtradeConfig, DEFAULT_ETRADE_CONFIG } from './types';
+import { EtradeConfig, DEFAULT_ETRADE_CONFIG, BusinessLicenseApiResponse } from './types';
 
 export class EtradeService implements GovernmentIntegration {
   readonly sourceName = 'etrade.gov.et';
   private client: EtradeClient;
-  private scraper: EtradeScraper;
 
   constructor(config: Partial<EtradeConfig> = {}) {
     this.client = new EtradeClient({ ...DEFAULT_ETRADE_CONFIG, ...config });
-    this.scraper = new EtradeScraper();
   }
 
   async verifyBusinessLicense(
@@ -30,14 +27,12 @@ export class EtradeService implements GovernmentIntegration {
     }
 
     try {
-      const html = await this.client.getBusinessLicensePage(
+      const data = await this.client.getBusinessLicense(
         sanitizedLicenseNo,
         sanitizedTin,
       );
 
-      const scraped = this.scraper.scrapeLicensePage(html);
-
-      if (!scraped.tin || scraped.tin.length === 0) {
+      if (!data) {
         return {
           valid: false,
           tin: sanitizedTin,
@@ -46,14 +41,15 @@ export class EtradeService implements GovernmentIntegration {
         };
       }
 
-      const tinMatches = this.compareTinValues(scraped.tin, sanitizedTin);
+      const tinMatches = this.compareTinValues(data.OwnerTIN || '', sanitizedTin);
+      const isActive = data.StatusDescription?.toLowerCase() === 'is active';
 
       return {
-        valid: tinMatches && scraped.licenseStatus === 'Active',
+        valid: tinMatches && isActive,
         tin: sanitizedTin,
-        businessName: scraped.businessName,
-        licenseStatus: scraped.licenseStatus,
-        phone: scraped.phone,
+        businessName: data.TradeName || 'Unknown Business',
+        licenseStatus: isActive ? 'Active' : data.StatusDescription || 'Unknown',
+        phone: this.extractPhone(data),
       };
     } catch (error: any) {
       if (error.message && error.message.startsWith('SSRF blocked')) {
@@ -70,8 +66,16 @@ export class EtradeService implements GovernmentIntegration {
     }
   }
 
-  private compareTinValues(scraped: string, original: string): boolean {
+  private extractPhone(data: BusinessLicenseApiResponse): string | undefined {
+    return (
+      data.AssociateShortInfos?.[0]?.MobilePhone ||
+      data.AddressInfo?.MobilePhone ||
+      undefined
+    );
+  }
+
+  private compareTinValues(returned: string, original: string): boolean {
     const normalize = (v: string) => v.replace(/[\s\-_]/g, '').toUpperCase();
-    return normalize(scraped) === normalize(original);
+    return normalize(returned) === normalize(original);
   }
 }

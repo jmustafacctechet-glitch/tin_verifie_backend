@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { EtradeConfig, DEFAULT_ETRADE_CONFIG } from './types';
+import { EtradeConfig, DEFAULT_ETRADE_CONFIG, BusinessLicenseApiResponse } from './types';
 
 export class EtradeClient {
   private client: AxiosInstance;
@@ -13,7 +13,7 @@ export class EtradeClient {
       timeout: this.config.timeoutMs,
       maxRedirects: 0,
       headers: {
-        Accept: 'text/html,application/xhtml+xml',
+        Accept: 'application/json, text/plain, */*',
         'User-Agent':
           'Mozilla/5.0 (compatible; GnzabeTINVerifier/1.0)',
       },
@@ -22,36 +22,23 @@ export class EtradeClient {
     this.client.interceptors.request.use(this.validateRequest.bind(this));
   }
 
-  async getBusinessLicensePage(
+  async getBusinessLicense(
     licenseNo: string,
     tin: string,
-  ): Promise<string> {
-    const response = await this.client.get('/business-license-checker', {
-      params: { licenseNo, tin },
-      responseType: 'text',
-      validateStatus: (status) => status < 400,
+  ): Promise<BusinessLicenseApiResponse | null> {
+    const response = await this.client.get('/api/BusinessMain/GetBusinessByLicenseNo', {
+      params: { LicenseNo: licenseNo, Tin: tin, Lang: 'en' },
+      headers: {
+        Referer: 'https://etrade.gov.et/',
+      },
+      validateStatus: (status) => status < 300 || status === 204,
     });
 
-    return response.data;
-  }
+    if (response.status === 204 || !response.data) {
+      return null;
+    }
 
-  async postBusinessLicenseLookup(
-    licenseNo: string,
-    tin: string,
-  ): Promise<string> {
-    const response = await this.client.post(
-      '/business-license-checker',
-      new URLSearchParams({ licenseNo, tin }),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        responseType: 'text',
-        validateStatus: (status) => status < 400,
-      },
-    );
-
-    return response.data;
+    return response.data as BusinessLicenseApiResponse;
   }
 
   private validateRequest(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
