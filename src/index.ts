@@ -13,18 +13,13 @@ export async function createApp(
     geezToken: string;
     geezSendUrl: string;
     geezBaseUrl: string;
-    etradeBaseUrl?: string;
-    etradeTimeoutMs?: number;
     sessionExpiryMinutes?: number;
   },
 ) {
   await mongoose.connect(mongoUri);
 
   const registry = new IntegrationRegistry();
-  const etrade = new EtradeService({
-    baseUrl: config.etradeBaseUrl,
-    timeoutMs: config.etradeTimeoutMs,
-  });
+  const etrade = new EtradeService();
   registry.register('etrade.gov.et', etrade);
 
   const otpService = new OtpService({

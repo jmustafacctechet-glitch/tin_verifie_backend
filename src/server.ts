@@ -14,8 +14,7 @@ async function start() {
       geezSendUrl:
         process.env.GEEZ_SEND_URL || 'https://api.geezsms.com/api/send',
       geezBaseUrl: process.env.GEEZ_URL || 'https://api.geezsms.com',
-      etradeBaseUrl: process.env.ETRADE_BASE_URL || 'https://etrade.gov.et',
-      etradeTimeoutMs: parseInt(process.env.ETRADE_TIMEOUT_MS || '10000', 10),
+
       sessionExpiryMinutes: 30,
     });
 

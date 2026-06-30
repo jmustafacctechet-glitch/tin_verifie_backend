@@ -1,14 +1,9 @@
 import { GovernmentIntegration, LicenseVerificationResult } from '../integration.interface';
-import { EtradeClient } from './etrade.client';
-import { EtradeConfig, DEFAULT_ETRADE_CONFIG, BusinessLicenseApiResponse } from './types';
+import { getBusinessByLicenseNo, ETradeError } from './etrade.client';
+import { BusinessByLicenseNo, BusinessStatus } from './etrade-types';
 
 export class EtradeService implements GovernmentIntegration {
   readonly sourceName = 'etrade.gov.et';
-  private client: EtradeClient;
-
-  constructor(config: Partial<EtradeConfig> = {}) {
-    this.client = new EtradeClient({ ...DEFAULT_ETRADE_CONFIG, ...config });
-  }
 
   async verifyBusinessLicense(
     licenseNo: string,
@@ -27,22 +22,10 @@ export class EtradeService implements GovernmentIntegration {
     }
 
     try {
-      const data = await this.client.getBusinessLicense(
-        sanitizedLicenseNo,
-        sanitizedTin,
-      );
-
-      if (!data) {
-        return {
-          valid: false,
-          tin: sanitizedTin,
-          businessName: '',
-          licenseStatus: 'NOT_FOUND',
-        };
-      }
+      const data = await getBusinessByLicenseNo(sanitizedLicenseNo, sanitizedTin, 'am');
 
       const tinMatches = this.compareTinValues(data.OwnerTIN || '', sanitizedTin);
-      const isActive = data.StatusDescription?.toLowerCase() === 'is active';
+      const isActive = data.Status === BusinessStatus.Active;
 
       return {
         valid: tinMatches && isActive,
@@ -51,9 +34,15 @@ export class EtradeService implements GovernmentIntegration {
         licenseStatus: isActive ? 'Active' : data.StatusDescription || 'Unknown',
         phone: this.extractPhone(data),
       };
-    } catch (error: any) {
-      if (error.message && error.message.startsWith('SSRF blocked')) {
-        throw error;
+    } catch (error: unknown) {
+      if (error instanceof ETradeError) {
+        return {
+          valid: false,
+          tin: sanitizedTin,
+          businessName: '',
+          licenseStatus: 'API_ERROR',
+          phone: undefined,
+        };
       }
 
       return {
@@ -66,7 +55,7 @@ export class EtradeService implements GovernmentIntegration {
     }
   }
 
-  private extractPhone(data: BusinessLicenseApiResponse): string | undefined {
+  private extractPhone(data: BusinessByLicenseNo): string | undefined {
     return (
       data.AssociateShortInfos?.[0]?.MobilePhone ||
       data.AddressInfo?.MobilePhone ||

@@ -1,57 +1,97 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { EtradeConfig, DEFAULT_ETRADE_CONFIG, BusinessLicenseApiResponse } from './types';
+import type { RegistrationInfo, BusinessByLicenseNo } from './etrade-types';
 
-export class EtradeClient {
-  private client: AxiosInstance;
-  private config: EtradeConfig;
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-  constructor(config: Partial<EtradeConfig> = {}) {
-    this.config = { ...DEFAULT_ETRADE_CONFIG, ...config };
+const COMMON_HEADERS = {
+  Referer: 'https://etrade.gov.et/business-license-checker',
+  'User-Agent': USER_AGENT,
+  Accept: 'application/json, text/plain, */*',
+};
 
-    this.client = axios.create({
-      baseURL: this.config.baseUrl,
-      timeout: this.config.timeoutMs,
-      maxRedirects: 0,
-      headers: {
-        Accept: 'application/json, text/plain, */*',
-        'User-Agent':
-          'Mozilla/5.0 (compatible; GnzabeTINVerifier/1.0)',
-      },
-    });
+export class ETradeError extends Error {
+  constructor(message: string, public status?: number) {
+    super(message);
+    this.name = 'ETradeError';
+  }
+}
 
-    this.client.interceptors.request.use(this.validateRequest.bind(this));
+// ── Endpoint 1: by TIN ───────────────────────────────────────────────────
+
+export async function getRegistrationInfoByTin(
+  tin: string,
+  lang: 'am' | 'en' = 'am',
+): Promise<RegistrationInfo> {
+  const url = `https://etrade.gov.et/api/Registration/GetRegistrationInfoByTin/${encodeURIComponent(tin)}/${encodeURIComponent(lang)}`;
+
+  const res = await fetch(url, { headers: COMMON_HEADERS });
+
+  if (!res.ok) {
+    throw new ETradeError(
+      `GetRegistrationInfoByTin failed with status ${res.status}`,
+      res.status,
+    );
   }
 
-  async getBusinessLicense(
-    licenseNo: string,
-    tin: string,
-  ): Promise<BusinessLicenseApiResponse | null> {
-    const response = await this.client.get('/api/BusinessMain/GetBusinessByLicenseNo', {
-      params: { LicenseNo: licenseNo, Tin: tin, Lang: 'en' },
-      headers: {
-        Referer: 'https://etrade.gov.et/',
-      },
-      validateStatus: (status) => status < 300 || status === 204,
-    });
+  return (await res.json()) as RegistrationInfo;
+}
 
-    if (response.status === 204 || !response.data) {
-      return null;
-    }
+// ── Endpoint 2: by License No ───────────────────────────────────────────
 
-    return response.data as BusinessLicenseApiResponse;
+export async function getBusinessByLicenseNo(
+  licenseNo: string,
+  tin: string,
+  lang: 'am' | 'en' = 'am',
+): Promise<BusinessByLicenseNo> {
+  const params = new URLSearchParams({
+    LicenseNo: licenseNo,
+    Tin: tin,
+    Lang: lang,
+  });
+
+  const url = `https://etrade.gov.et/api/BusinessMain/GetBusinessByLicenseNo?${params.toString()}`;
+
+  const res = await fetch(url, { headers: COMMON_HEADERS });
+
+  if (!res.ok) {
+    throw new ETradeError(
+      `GetBusinessByLicenseNo failed with status ${res.status}`,
+      res.status,
+    );
   }
 
-  private validateRequest(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-    const resolvedUrl = config.baseURL
-      ? new URL(config.url || '', config.baseURL)
-      : new URL(config.url || '', 'http://localhost');
+  return (await res.json()) as BusinessByLicenseNo;
+}
 
-    const allowedHostname = new URL(this.config.baseUrl).hostname;
-    if (resolvedUrl.hostname !== allowedHostname) {
-      throw new Error(
-        `SSRF blocked: request to "${resolvedUrl.hostname}" is not allowed`,
-      );
-    }
-    return config;
-  }
+// ── Date parsing helper ─────────────────────────────────────────────────
+
+export function parseEtradeDate(dateStr: string | null): Date | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+
+  const [day, month, year] = parts.map(Number);
+  if ([day, month, year].some((n) => Number.isNaN(n))) return null;
+
+  return new Date(year, month - 1, day);
+}
+
+// ── Reconciling the RenewedTo discrepancy ───────────────────────────────
+
+export interface RenewalDates {
+  fromIsoField: Date | null;
+  fromStringField: Date | null;
+  agree: boolean;
+}
+
+export function reconcileRenewedTo(business: BusinessByLicenseNo): RenewalDates {
+  const fromIsoField = business.RenewedTo ? new Date(business.RenewedTo) : null;
+  const fromStringField = parseEtradeDate(business.RenewedToDateString);
+
+  const agree =
+    !!fromIsoField &&
+    !!fromStringField &&
+    fromIsoField.getTime() === fromStringField.getTime();
+
+  return { fromIsoField, fromStringField, agree };
 }
