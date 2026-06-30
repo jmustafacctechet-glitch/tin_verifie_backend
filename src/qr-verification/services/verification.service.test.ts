@@ -110,7 +110,7 @@ describe('VerificationService', () => {
       expect(result.failureReason).toBe(FailureReason.INVALID_LICENSE);
     });
 
-    it('returns OTP_PENDING when government validates successfully with phone', async () => {
+    it('returns VERIFIED when government validates successfully', async () => {
       mockIntegration.verifyBusinessLicense.mockResolvedValue({
         valid: true,
         tin: '1234567890',
@@ -119,24 +119,12 @@ describe('VerificationService', () => {
         phone: '+251911123456',
       });
 
-      const result = await service.processQrScan(validUrl);
-      expect(result.status).toBe(VerificationStatus.OTP_PENDING);
-      expect(result.sessionId).toBe('session123');
-      expect(result.extractedData).toBeDefined();
-    });
-
-    it('returns VERIFIED when government validates but no phone', async () => {
-      mockIntegration.verifyBusinessLicense.mockResolvedValue({
-        valid: true,
-        tin: '1234567890',
-        businessName: 'ABC Trading PLC',
-        licenseStatus: 'Active',
-      });
-
       mockSessionDoc.status = VerificationStatus.VERIFIED;
 
       const result = await service.processQrScan(validUrl);
       expect(result.status).toBe(VerificationStatus.VERIFIED);
+      expect(result.sessionId).toBe('session123');
+      expect(result.extractedData).toBeDefined();
     });
   });
 

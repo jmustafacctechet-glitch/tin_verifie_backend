@@ -93,12 +93,7 @@ export class VerificationService {
         };
       }
 
-      session.status = VerificationStatus.GOVERNMENT_VALIDATED;
-      session.verificationData = {
-        businessName: govResult.businessName,
-        licenseStatus: govResult.licenseStatus,
-        phone: govResult.phone,
-      };
+      session.status = VerificationStatus.VERIFIED;
       session.verificationData = {
         businessName: govResult.businessName,
         licenseStatus: govResult.licenseStatus,
@@ -110,32 +105,9 @@ export class VerificationService {
         sessionId: session._id.toString(),
         tin: parsed.tin,
         licenseNo: parsed.licenseNo,
-        result: 'GOVERNMENT_VALIDATED',
+        result: 'VERIFIED',
         timestamp: new Date(),
       });
-
-      if (govResult.phone) {
-        session.status = VerificationStatus.OTP_PENDING;
-        const otpResult = this.otpService.generateOtp();
-        session.otpHash = otpResult.otpHash;
-        session.otpExpiresAt = otpResult.expiresAt;
-        session.otpAttempts = 0;
-        await session.save();
-
-        const sendResult = await this.otpService.sendOtp(
-          govResult.phone,
-          otpResult.otp,
-        );
-
-        if (!sendResult.success) {
-          console.warn(
-            `Failed to send OTP to ${govResult.phone}: ${sendResult.error}`,
-          );
-        }
-      } else {
-        session.status = VerificationStatus.VERIFIED;
-        await session.save();
-      }
 
       return {
         sessionId: session._id.toString(),
