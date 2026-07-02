@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: './.env' });
 
 import { createApp } from './index';
-
+   
 const PORT = parseInt(process.env.PORT || '4000', 10);
 const MONGODB_URI =
   process.env.MONGODB_URI || 'mongodb://localhost:27017/tin-verifier';
