@@ -69,7 +69,7 @@ export class VerificationService {
       if (!govResult.valid) {
         const reason = govResult.licenseStatus === 'NOT_FOUND'
           ? FailureReason.INVALID_LICENSE
-          : govResult.licenseStatus === 'API_ERROR'
+          : govResult.licenseStatus.startsWith('API_ERROR')
             ? FailureReason.GOVERNMENT_API_ERROR
             : FailureReason.TIN_MISMATCH;
 

@@ -35,12 +35,28 @@ export class EtradeService implements GovernmentIntegration {
         phone: this.extractPhone(data),
       };
     } catch (error: unknown) {
+      console.error(
+        `[EtradeService] verifyBusinessLicense failed for license=${sanitizedLicenseNo} tin=${sanitizedTin}:`,
+        error,
+      );
+
+      // Map ETradeError reason to a specific status your controller can act on.
+      // CERT_ERROR is the most important — it means the pem needs updating,
+      // not that the business data is wrong.
       if (error instanceof ETradeError) {
+        const statusMap: Record<string, string> = {
+          CERT_ERROR:    'GOVERNMENT_CERT_ERROR',   // cert rotated
+          TIMEOUT:       'GOVERNMENT_TIMEOUT',       // server slow
+          SERVER_ERROR:  `GOVERNMENT_HTTP_ERROR_${error.status ?? 'UNKNOWN'}`,
+          NETWORK_ERROR: 'GOVERNMENT_NETWORK_ERROR',
+          UNKNOWN:       'GOVERNMENT_API_ERROR',
+        };
+
         return {
           valid: false,
           tin: sanitizedTin,
           businessName: '',
-          licenseStatus: 'API_ERROR',
+          licenseStatus: statusMap[error.reason] ?? 'GOVERNMENT_API_ERROR',
           phone: undefined,
         };
       }
@@ -49,7 +65,7 @@ export class EtradeService implements GovernmentIntegration {
         valid: false,
         tin: sanitizedTin,
         businessName: '',
-        licenseStatus: 'API_ERROR',
+        licenseStatus: 'GOVERNMENT_API_ERROR',
         phone: undefined,
       };
     }

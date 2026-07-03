@@ -1,0 +1,7 @@
+### Test QR Verification
+POST http://localhost:4000/api/qr-verification/scan
+Content-Type: application/json
+
+{
+  "qrData": "https://etrade.gov.et/business-license-checker?licenseNo=klk%2FAA%2F14%2F667%2F24665027%2F2017&tin=0092509421"
+}

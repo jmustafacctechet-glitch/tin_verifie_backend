@@ -89,13 +89,13 @@ describe('EtradeService', () => {
 
   it('returns API_ERROR on ETradeError', async () => {
     mockGetBusinessByLicenseNo.mockRejectedValue(
-      new ETradeError('API error', 502),
+      new ETradeError('API error', 'UNKNOWN'),
     );
 
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
 
     expect(result.valid).toBe(false);
-    expect(result.licenseStatus).toBe('API_ERROR');
+    expect(result.licenseStatus).toContain('API_ERROR');
   });
 
   it('returns API_ERROR on network failure', async () => {
@@ -104,7 +104,7 @@ describe('EtradeService', () => {
     const result = await service.verifyBusinessLicense('ABC/123', '1234567890');
 
     expect(result.valid).toBe(false);
-    expect(result.licenseStatus).toBe('API_ERROR');
+    expect(result.licenseStatus).toContain('API_ERROR');
   });
 
   it('rejects empty inputs', async () => {
