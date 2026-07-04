@@ -5,7 +5,7 @@ import axios, { AxiosError } from 'axios';
 import type { RegistrationInfo, BusinessByLicenseNo } from './etrade-types';
 
 
-const certPath = path.resolve(process.cwd(), 'certs/etrade-ca.pem');
+const certPath = path.resolve(process.cwd(), 'certs/etrade-chain.pem');
 const etradeAxios = axios.create({
   httpsAgent: new https.Agent({
     ca: fs.readFileSync(certPath),
